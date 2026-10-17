@@ -1,11 +1,18 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { calculatePaycheck } from "../js/engine.js";
 import { STATES, TAX_YEAR } from "../js/tax-data.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const outDir = join(root, "public");
 const SITE_URL = (process.env.SITE_URL || "").replace(/\/$/, "");
+
+rmSync(outDir, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
+for (const asset of ["css", "js", "favicon.svg"]) {
+  cpSync(join(root, asset), join(outDir, asset), { recursive: true });
+}
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -14,7 +21,7 @@ function esc(value) {
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 function write(rel, html) {
-  const path = join(root, rel);
+  const path = join(outDir, rel);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, html);
 }

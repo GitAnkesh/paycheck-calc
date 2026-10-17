@@ -30,7 +30,7 @@ The site is plain HTML, CSS, and JavaScript. A reasonable setup:
 
 1. Buy a `.com` you can say out loud. Budget about $12 a year, roughly ₹1,000.
 2. Put the domain on Cloudflare (free).
-3. Deploy the folder with Cloudflare Pages, also free. Build command is empty. Output directory is the project root, after you have run `npm run build`.
+3. Deploy with Cloudflare Pages. Build command is `npm run build`. Output directory is `public`. Set `SITE_URL` to the live domain, including `https://`.
 
 Netlify or GitHub Pages work too. Do not pay for a server.
 

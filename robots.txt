@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://takehomestub.com/sitemap.xml
