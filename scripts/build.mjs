@@ -36,10 +36,18 @@ function write(rel, html) {
   writeFileSync(path, html);
 }
 
+function jsonScript(data) {
+  return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
+}
+
 function layout({ title, description, body, depth = 0, defaultState = "", canonicalPath = "/", jsonLd = "" }) {
   const asset = depth ? "../".repeat(depth) : "";
   const home = `${asset}index.html`;
-  const canonical = SITE_URL ? `<link rel="canonical" href="${esc(SITE_URL + canonicalPath)}">` : "";
+  const pageUrl = SITE_URL ? `${SITE_URL}${canonicalPath === "/" ? "/" : canonicalPath}` : "";
+  const social = pageUrl
+    ? `<link rel="canonical" href="${esc(pageUrl)}">
+  <meta property="og:url" content="${esc(pageUrl)}">`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,10 +56,11 @@ function layout({ title, description, body, depth = 0, defaultState = "", canoni
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(description)}">
   <meta name="robots" content="index,follow">
-  ${canonical}
+  ${social}
   <meta property="og:title" content="${esc(title)}">
   <meta property="og:description" content="${esc(description)}">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="${asset}favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="${asset}css/site.css">
   ${gaSnippet}
@@ -204,7 +213,7 @@ const stateLinks = STATES.map((s) => `<a href="states/${s.slug}.html">${esc(s.na
 
 const indexBody = `
   <p class="eyebrow">${TAX_YEAR} US estimate</p>
-  <h1>See what a paycheck keeps after tax</h1>
+    <h1>US paycheck calculator for ${TAX_YEAR}</h1>
   <p class="lede">Estimate federal income tax, Social Security, Medicare, and state income tax for any state. A traditional 401(k) and pre-tax health premium are included. The result is a pay stub, not a tax return.</p>
   ${calcBlock().replace('src="js/app.js"', 'src="js/app.js"')}
   <article class="prose" id="guide">
@@ -251,7 +260,21 @@ write("index.html", layout({
   body: indexBody,
   defaultState: "CA",
   canonicalPath: "/",
-  jsonLd: `<script type="application/ld+json">${faqLd}</script>`,
+  jsonLd: jsonScript({
+    "@context": "https://schema.org",
+    "@graph": [
+      JSON.parse(faqLd),
+      {
+        "@type": "WebApplication",
+        name: "Paycheck Stub",
+        url: SITE_URL ? `${SITE_URL}/` : undefined,
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Web",
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        description: `Estimate ${TAX_YEAR} US take-home pay after federal income tax, Social Security, Medicare, and state income tax.`,
+      },
+    ],
+  }),
 }));
 
 const rows = STATES.map((s) => {
@@ -288,7 +311,7 @@ write("by-state.html", layout({
 
 const compareBody = `
   <p class="eyebrow">Same salary, two states</p>
-  <h1>Compare take-home pay</h1>
+  <h1>Compare take-home pay by state</h1>
   <p class="lede" id="compare-lead">Pick two states.</p>
   <form id="compare-form" class="panel">
     <div class="pair">
@@ -348,9 +371,17 @@ STATES.forEach((s, index) => {
       : `${s.name} uses graduated brackets. The top rate in this table is ${(top * 100).toFixed(2)}%.`;
   const prev = STATES[(index + STATES.length - 1) % STATES.length];
   const next = STATES[(index + 1) % STATES.length];
+  const stateFaq = [
+    [
+      `How much is take-home pay on $75,000 in ${s.name}?`,
+      `In this ${TAX_YEAR} estimate, a single filer with no 401(k) keeps ${usd.format(at75.netAnnual)} a year in ${s.name}, about ${usd.format(at75.netPeriod)} on each biweekly paycheck. Federal income tax is ${usd.format(at75.federalAnnual)}. ${s.name} income tax is ${usd.format(at75.stateAnnual)}. Local city or county tax is not included.`,
+    ],
+    [`Does ${s.name} tax wages?`, structure],
+  ];
   const body = `
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="../index.html">Paycheck calculator</a> <span aria-hidden="true">/</span> <span>${esc(s.name)}</span></nav>
     <p class="eyebrow">${TAX_YEAR} ${esc(s.name)} paycheck</p>
-    <h1>${esc(s.name)} take-home pay calculator</h1>
+    <h1>${esc(s.name)} paycheck calculator</h1>
     <p class="lede">${esc(structure)} A single filer making $75,000 keeps about ${usd.format(at75.netAnnual)} in this estimate, or ${usd.format(at75.netPeriod)} on each biweekly paycheck, before local tax.</p>
     ${calcBlock().replaceAll('src="js/', 'src="../js/')}
     <article class="prose">
@@ -367,18 +398,42 @@ STATES.forEach((s, index) => {
       ${s.note ? `<p>${esc(s.note)}</p>` : ""}
       ${s.local ? `<p>${esc(s.local)}</p>` : ""}
       <p>Texas, on the same $75,000 salary, keeps ${usd.format(tx75.netAnnual)} because it has no wage income tax. Use <a href="../compare.html">compare</a> if you want two states side by side, or the <a href="../by-state.html">full ranking</a>.</p>
+      <h2>Questions about a ${esc(s.name)} paycheck</h2>
+      <div class="faq">
+        ${stateFaq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}
+      </div>
       <div class="pager">
-        <a href="${prev.slug}.html">${esc(prev.name)}</a>
-        <a href="${next.slug}.html">${esc(next.name)}</a>
+        <a href="${prev.slug}.html">${esc(prev.name)} paycheck calculator</a>
+        <a href="${next.slug}.html">${esc(next.name)} paycheck calculator</a>
       </div>
     </article>`;
   const html = layout({
-    title: `${s.name} Paycheck Calculator ${TAX_YEAR} | Take-Home Pay`,
-    description: `Estimate ${TAX_YEAR} take-home pay in ${s.name} after federal income tax, Social Security, Medicare, and ${s.name} state tax.`,
+    title: `${s.name} Paycheck Calculator ${TAX_YEAR}`,
+    description: `${s.name} paycheck calculator for ${TAX_YEAR}. A single filer earning $75,000 keeps about ${usd.format(at75.netAnnual)} after federal tax, FICA, and ${s.name} income tax.`,
     body,
     depth: 1,
     defaultState: s.code,
     canonicalPath: `/states/${s.slug}.html`,
+    jsonLd: jsonScript({
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "FAQPage",
+          mainEntity: stateFaq.map(([q, a]) => ({
+            "@type": "Question",
+            name: q,
+            acceptedAnswer: { "@type": "Answer", text: a },
+          })),
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Paycheck calculator", item: SITE_URL ? `${SITE_URL}/` : undefined },
+            { "@type": "ListItem", position: 2, name: `${s.name} paycheck calculator`, item: SITE_URL ? `${SITE_URL}/states/${s.slug}.html` : undefined },
+          ],
+        },
+      ],
+    }),
   });
   write(`states/${s.slug}.html`, html.replace('href="#calculator"', 'href="#calculator"'));
 });
@@ -396,7 +451,7 @@ simplePage("about.html", "About Paycheck Stub", "Paycheck Stub is an independent
   <h1>About</h1>
   <p>Paycheck Stub is an independent calculator for US employees who want a plain estimate of take-home pay. It is not a payroll company, not a CPA firm, and not affiliated with the IRS or any state revenue department.</p>
   <p>The federal figures are the ${TAX_YEAR} standard deduction, the seven income-tax brackets, the Social Security wage base, and the 401(k) employee deferral limit published by the IRS. State income-tax brackets follow the Tax Foundation's January ${TAX_YEAR} compilation of state statutes. Local taxes are called out when they are common, and they are not subtracted.</p>
-  <p><strong>Before you apply for advertising, replace this sentence with your legal name and the city and country where you operate the site.</strong> Ad networks reject sites that hide who publishes them.</p>
+  <p>The site is published independently. Questions go to <a href="mailto:info@takehomestub.com">info@takehomestub.com</a>.</p>
   <p><a href="contact.html">Contact</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>`);
 
 simplePage("privacy.html", "Privacy Policy | Paycheck Stub", "How Paycheck Stub handles salary figures, cookies, and advertising.", `
@@ -441,7 +496,7 @@ const paths = [
 if (SITE_URL) {
   write("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${paths.map((p) => `  <url><loc>${esc(SITE_URL + (p === "/" ? "/" : p))}</loc></url>`).join("\n")}
+${paths.map((p) => `  <url><loc>${esc(SITE_URL + (p === "/" ? "/" : p))}</loc><lastmod>2026-10-18</lastmod></url>`).join("\n")}
 </urlset>
 `);
   write("robots.txt", `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
