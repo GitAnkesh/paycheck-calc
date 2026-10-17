@@ -7,6 +7,16 @@ import { STATES, TAX_YEAR } from "../js/tax-data.js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "public");
 const SITE_URL = (process.env.SITE_URL || "").replace(/\/$/, "");
+const GA_ID = (process.env.GA_MEASUREMENT_ID || "").trim();
+const gaSnippet = /^G-[A-Z0-9]+$/.test(GA_ID)
+  ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${GA_ID}');
+  </script>`
+  : "";
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
@@ -44,6 +54,7 @@ function layout({ title, description, body, depth = 0, defaultState = "", canoni
   <meta property="og:type" content="website">
   <link rel="icon" href="${asset}favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="${asset}css/site.css">
+  ${gaSnippet}
   ${jsonLd}
 </head>
 <body${defaultState ? ` data-default-state="${esc(defaultState)}"` : ""}>
